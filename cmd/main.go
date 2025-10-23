@@ -24,5 +24,5 @@ func main () {
 			return
 		}
 
-		log.Println("Process closing successfuly.")
+		log.Println("Process is closing successfuly.")
 }
