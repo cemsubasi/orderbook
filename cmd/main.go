@@ -1,8 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
+
+	"github.com/cemsubasi/orderbook/internal/db"
 )
 
 func main () {
@@ -12,7 +14,15 @@ func main () {
 	kafkaPass := os.Getenv("KAFKA_PASS")
 
 	if pgUser == "" || pgPass == "" || kafkaUser == "" || kafkaPass == "" {
-		fmt.Println("Environment variables not set")
+		log.Println("Environment variables not set.")
 		return
 	}
+
+    pgpool := db.InitPostgres(pgUser, pgPass)
+		if pgpool == nil {
+			log.Fatal("Posgres couldn't initialized.")
+			return
+		}
+
+		log.Println("Process closing successfuly.")
 }

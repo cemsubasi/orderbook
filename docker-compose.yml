@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: orderbook
+      POSTGRES_USER: obuser
+      POSTGRES_PASSWORD: obpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data2
+
+volumes:
+  pgdata:
+
