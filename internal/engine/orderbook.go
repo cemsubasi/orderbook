@@ -6,9 +6,9 @@ import (
 
 type OrderBook struct {
     Symbol string
-    buys   map[float64]*PriceLevel // price -> level (buy sorted descending)
+    buys map[float64]*PriceLevel // price -> level (buy sorted descending)
     buysPrices []float64
-    sells  map[float64]*PriceLevel // price -> level (sell sorted ascending)
+    sells map[float64]*PriceLevel // price -> level (sell sorted ascending)
     sellsPrices []float64
     ordersIndex map[string]*Order   // quick lookup for cancel
     mu sync.RWMutex
