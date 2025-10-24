@@ -4,7 +4,10 @@ go 1.23.0
 
 toolchain go1.24.9
 
-require github.com/jackc/pgx/v5 v5.7.6
+require (
+	github.com/jackc/pgx/v5 v5.7.6
+	github.com/rs/xid v1.6.0
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

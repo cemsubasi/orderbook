@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/cemsubasi/orderbook/internal/api"
 	"github.com/cemsubasi/orderbook/internal/db"
+	"github.com/cemsubasi/orderbook/internal/engine"
 )
 
 func main () {
@@ -12,6 +16,7 @@ func main () {
 	pgPass := os.Getenv("PG_PASS")
 	kafkaUser := os.Getenv("KAFKA_USER")
 	kafkaPass := os.Getenv("KAFKA_PASS")
+	port := os.Getenv("OB_PORT")
 
 	if pgUser == "" || pgPass == "" || kafkaUser == "" || kafkaPass == "" {
 		log.Println("Environment variables not set.")
@@ -24,5 +29,21 @@ func main () {
 			return
 		}
 
-		log.Println("Process is closing successfuly.")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		engine := engine.NewEngine()
+		engine.Start(ctx)
+
+		api.HandleOrderController(engine)
+
+		addr := ":8080"
+		if port != "" {
+			addr = port
+		}
+
+		log.Printf("Starting HTTP server on %s", addr)
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			log.Fatal(err)
+	}
 }
