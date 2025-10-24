@@ -1,12 +1,11 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
+	"github.com/gin-gonic/gin"
 	"github.com/rs/xid"
 )
 
@@ -17,23 +16,12 @@ type orderCreateRequest struct {
 		Quantity float64 `json:"quantity" binding:"required"`
 }
 
-func HandleOrderController(e *engine.Engine) {
-	http.HandleFunc("POST /order", func(responseWriter http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodPost {
-			responseWriter.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
+func HandleOrderController(r *gin.Engine, e *engine.Engine) {
+	r.POST("POST /order", func(c *gin.Context) {
 		var orderRequest orderCreateRequest
-		err := json.NewDecoder(request.Body).Decode(&orderRequest)
-		if err != nil {
-			responseWriter.WriteHeader(http.StatusBadRequest)
-			return
-		}
 
-		if orderRequest.Symbol == "" || orderRequest.Side == "" || orderRequest.Quantity <= 0 {
-			responseWriter.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(responseWriter, "Missing or invalid fields")
+		if err := c.ShouldBindBodyWithJSON(&orderRequest); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
@@ -49,6 +37,6 @@ func HandleOrderController(e *engine.Engine) {
 		}
 
 		e.Submit(order)
-		})
+	})
 }
 

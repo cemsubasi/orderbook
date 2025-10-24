@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/cemsubasi/orderbook/internal/api"
 	"github.com/cemsubasi/orderbook/internal/db"
 	"github.com/cemsubasi/orderbook/internal/engine"
+	"github.com/gin-gonic/gin"
 )
 
 func main () {
@@ -35,15 +35,17 @@ func main () {
 		engine := engine.NewEngine()
 		engine.Start(ctx)
 
-		api.HandleOrderController(engine)
+		r := gin.Default()
+
+		api.HandleOrderController(r, engine)
 
 		addr := ":8080"
 		if port != "" {
-			addr = port
+			addr = ":" + port
 		}
 
 		log.Printf("Starting HTTP server on %s", addr)
-		if err := http.ListenAndServe(addr, nil); err != nil {
+		if err := r.Run(addr); err != nil {
 			log.Fatal(err)
 	}
 }
