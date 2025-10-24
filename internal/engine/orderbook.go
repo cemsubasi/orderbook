@@ -1,7 +1,12 @@
 package engine
 
 import (
+	"math"
+	"sort"
 	"sync"
+	"time"
+
+	"github.com/rs/xid"
 )
 
 type OrderBook struct {
@@ -22,3 +27,146 @@ func NewOrderBook(symbol string) *OrderBook {
         ordersIndex: make(map[string]*Order),
     }
 }
+
+func (engine *Engine) GetBook(symbol string) *OrderBook {
+    
+    book, ok := engine.books[symbol]
+    if !ok {
+        book = NewOrderBook(symbol)
+        engine.books[symbol] = book
+    }
+
+    return book
+}
+
+func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
+    orderbook.mu.Lock()
+    defer orderbook.mu.Unlock()
+    var trades []*Trade
+    remaining := order.Remaining
+    if order.Side == Buy {
+        for len(orderbook.sellsPrices) > 0 && remaining > 0 {
+            bestPrice := orderbook.sellsPrices[0]
+            priceLevel := orderbook.sells[bestPrice]
+            for len(priceLevel.Orders) > 0 && remaining > 0 {
+                maker := priceLevel.Peek()
+                execQuantity := math.Min(remaining, maker.Remaining)
+                trade := &Trade {
+                    ID: xid.New().String(),
+                    Symbol: order.Symbol,
+                    BuyOrderID: order.ID,
+                    SellOrderID: maker.ID,
+                    Price: maker.Price,
+                    Quantity: execQuantity,
+                    ExecutedAt: time.Now().UTC(),
+                }
+
+                trades = append(trades, trade)
+                maker.Remaining -= execQuantity
+                remaining -= execQuantity
+                if maker.Remaining <= 0 {
+                    priceLevel.Dequeue()
+                    delete(orderbook.ordersIndex, maker.ID)
+                }
+            }
+
+            if len(priceLevel.Orders) == 0 {
+               orderbook.removePriceIfEmpty(orderbook.sells, bestPrice, false) 
+           } else {
+                if remaining <= 0 {
+                  break
+                }
+           }
+        }
+    } else {
+        for len(orderbook.buysPrices) > 0 && remaining > 0 {
+            bestPrice := orderbook.buysPrices[0]
+            priceLevel := orderbook.buys[bestPrice]
+            for len(priceLevel.Orders) > 0 && remaining > 0 {
+                maker := priceLevel.Peek()
+                execQuantity := math.Min(remaining, maker.Remaining)
+                trade := &Trade {
+                    ID: xid.New().String(),
+                    Symbol: order.Symbol,
+                    BuyOrderID: maker.ID,
+                    SellOrderID: order.ID,
+                    Price: maker.Price,
+                    Quantity: execQuantity,
+                    ExecutedAt: time.Now().UTC(),
+                }
+
+                trades = append(trades, trade)
+                maker.Remaining -= execQuantity
+                remaining -= execQuantity
+                if maker.Remaining <= 0 {
+                    priceLevel.Dequeue()
+                    delete(orderbook.ordersIndex, maker.ID)
+                }
+            }
+
+            if len(priceLevel.Orders) == 0 {
+                orderbook.removePriceIfEmpty(orderbook.buys, bestPrice, true)
+            } else {
+                if remaining <= 0 {
+                    break;
+                }
+            }
+        }
+    }
+
+    order.Remaining = remaining
+    if order.Price > 0 && order.Remaining > 0 {
+        if order.Side == Buy {
+            orderbook.addPriceIfMissing(orderbook.buys, order.Price, true)
+            orderbook.buys[order.Price].Enqueue(order)
+        } else {
+            orderbook.addPriceIfMissing(orderbook.sells, order.Price, false)
+            orderbook.sells[order.Price].Enqueue(order)
+        }
+
+        orderbook.ordersIndex[order.ID] = order
+    }
+
+    return trades
+}
+
+func (orderBook *OrderBook) removePriceIfEmpty(priceLevels map[float64]*PriceLevel, price float64, isBuy bool) {
+	priceLevel := priceLevels[price]
+	if priceLevel != nil && len(priceLevel.Orders) == 0 {
+		delete(priceLevels, price)
+		if isBuy {
+			newPrice := make([]float64, 0, len(orderBook.buysPrices))
+			for _, buyPrice := range orderBook.buysPrices {
+				if buyPrice != price {
+					newPrice = append(newPrice, buyPrice)
+				}
+			}
+
+			orderBook.buysPrices = newPrice
+		} else {
+			newPrice := make([]float64, 0, len(orderBook.sellsPrices))
+			for _, sellPrice := range orderBook.sellsPrices {
+				if sellPrice != price {
+					newPrice = append(newPrice, sellPrice)
+				}
+			}
+
+			orderBook.sellsPrices = newPrice
+		}
+	}
+}
+
+func (orderBook *OrderBook) addPriceIfMissing(priceLevels map[float64]*PriceLevel, price float64, isBuy bool) {
+	if _, ok := priceLevels[price]; ok {
+		return
+	}
+	priceLevels[price] = &PriceLevel{Price: price}
+	if isBuy {
+		orderBook.buysPrices = append(orderBook.buysPrices, price)
+		sort.Slice(orderBook.buysPrices, func(i, j int) bool { return orderBook.buysPrices[i] > orderBook.buysPrices[j] })
+	} else {
+		orderBook.sellsPrices = append(orderBook.sellsPrices, price)
+		sort.Float64s(orderBook.sellsPrices)
+	}
+}
+

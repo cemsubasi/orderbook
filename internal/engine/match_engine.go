@@ -22,7 +22,9 @@ func (engine *Engine) Start(ctx context.Context) {
         for {
             select {
             case order := <- engine.orderChannel:
-                log.Println("OrderID is: %s, OrderSymbol is: %s", order.ID, order.Symbol)
+                log.Printf("OrderID is: %s, OrderSymbol is: %s", order.ID, order.Symbol)
+                orderbook := engine.GetBook(order.Symbol)
+                orderbook.MatchIncoming(order)
                 return
             case <- ctx.Done():
                 return
