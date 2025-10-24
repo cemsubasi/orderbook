@@ -170,3 +170,34 @@ func (orderBook *OrderBook) addPriceIfMissing(priceLevels map[float64]*PriceLeve
 	}
 }
 
+func (orderbook *OrderBook) Snapshot(depth int) (bids []map[string]any, asks []map[string]any) {
+	orderbook.mu.RLock()
+	defer orderbook.mu.RUnlock()
+	for i, priceLevel := range orderbook.buysPrices {
+		if i >= depth {
+			break
+		}
+
+		volume := 0.0
+		for _, order := range orderbook.buys[priceLevel].Orders {
+			volume += order.Remaining
+		}
+
+		bids = append(bids, map[string]any{"price": priceLevel, "qty": volume})
+	}
+
+	for i, price := range orderbook.sellsPrices {
+		if i >= depth {
+			break
+		}
+
+		volume := 0.0
+		for _, order := range orderbook.sells[price].Orders {
+			volume += order.Remaining
+		}
+
+		asks = append(asks, map[string]any{"price": price, "qty": volume})
+	}
+
+	return
+}
