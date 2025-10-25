@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "program": "${workspaceFolder}/cmd/main.go", // debuglamak istediğin klasör
+            "args": [],
+            "env": {
+                "PG_USER": "obuser",
+                "PG_PASS": "obpass",
+                "KAFKA_USER": "kafkauser",
+                "KAFKA_PASS": "kafkapass"
+            },
+            "buildFlags": ""
+        },
+        {
+            "name": "Launch File",
+            "type": "go",
+            "request": "launch",
+            "program": "${file}/cmd/main.go"
+        }
+    ]
+}

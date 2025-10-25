@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func main () {
+func main() {
 	pgUser := os.Getenv("PG_USER")
 	pgPass := os.Getenv("PG_PASS")
 	kafkaUser := os.Getenv("KAFKA_USER")
@@ -23,29 +23,29 @@ func main () {
 		return
 	}
 
-    pgpool := db.InitPostgres(pgUser, pgPass)
-		if pgpool == nil {
-			log.Fatal("Posgres couldn't initialized.")
-			return
-		}
+	pgpool := db.InitPostgres(pgUser, pgPass)
+	if pgpool == nil {
+		log.Fatal("Posgres couldn't initialized.")
+		return
+	}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		engine := engine.NewEngine()
-		engine.Start(ctx)
+	engine := engine.NewEngine()
+	engine.Start(ctx)
 
-		r := gin.Default()
+	r := gin.Default()
 
-		api.HandleOrderController(r, engine)
+	api.HandleOrderController(r, engine)
 
-		addr := ":8080"
-		if port != "" {
-			addr = ":" + port
-		}
+	addr := ":8080"
+	if port != "" {
+		addr = ":" + port
+	}
 
-		log.Printf("Starting HTTP server on %s", addr)
-		if err := r.Run(addr); err != nil {
-			log.Fatal(err)
+	log.Printf("Starting HTTP server on %s", addr)
+	if err := r.Run(addr); err != nil {
+		log.Fatal(err)
 	}
 }
