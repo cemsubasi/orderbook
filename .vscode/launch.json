@@ -9,11 +9,11 @@
             "args": [],
             "env": {
                 "PG_HOST": "localhost",
-                "PG_PORT": "5432",
                 "PG_USER": "obuser",
                 "PG_PASS": "obpass",
                 "PG_DB": "orderbook",
-                "KAFKA_BROKERS": "localhost:9092",
+                "KAFKA_HOST": "localhost",
+                "KAFKA_PORT": "9092",
             },
             "buildFlags": ""
         },

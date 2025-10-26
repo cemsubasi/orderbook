@@ -33,21 +33,20 @@ services:
     depends_on:
       zookeeper:
         condition: service_healthy
-
     ports:
       - "9092:9092"
-      - "9093:9093"
+      - "${KAFKA_PORT}:${KAFKA_PORT}"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:${KAFKA_PORT}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:${KAFKA_PORT}
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     healthcheck:
-      test: ["CMD", "nc", "-z", "kafka", "9093"]
+      test: ["CMD", "nc", "-z", "kafka", "${KAFKA_PORT}"]
       interval: 5s
       retries: 10
 
@@ -59,15 +58,14 @@ services:
         TARGETOS: linux
         TARGETARCH: amd64
     ports:
-      - "${OB_PORT}:${OB_PORT}"
+      - "8080:8080"
     environment:
       PG_USER: ${PG_USER}
       PG_PASS: ${PG_PASS}
       PG_HOST: ${PG_HOST}
-      PG_PORT: ${PG_PORT}
       PG_DB: ${PG_DB}
-      OB_PORT: ${OB_PORT}
-      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      KAFKA_HOST: ${KAFKA_HOST}
+      KAFKA_PORT: ${KAFKA_PORT}
     depends_on:
       kafka:
         condition: service_healthy
@@ -85,6 +83,6 @@ services:
     depends_on:
       - orderbook
     environment:
-      - REACT_APP_API_URL=http://localhost:${OB_PORT}
+      - REACT_APP_API_URL=http://localhost:8080
 volumes:
   pgdata:

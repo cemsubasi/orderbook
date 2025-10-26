@@ -19,24 +19,26 @@ func main() {
 	pgPass := os.Getenv("PG_PASS")
 	pgDB := os.Getenv("PG_DB")
 	pgHost := os.Getenv("PG_HOST")
-	pgPort := os.Getenv("PG_PORT")
-	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
-	port := os.Getenv("OB_PORT")
+	kafkaHost := os.Getenv("KAFKA_HOST")
+	kafkaPort := os.Getenv("KAFKA_PORT")
 
 	if pgUser == "" || pgPass == "" {
 		log.Println("Environment variables not set.")
 		return
 	}
-
 	if pgHost == "" {
 		pgHost = "localhost"
 	}
-
-	if kafkaBrokers == "" {
-		kafkaBrokers = "localhost:9092"
+	if kafkaHost == "" {
+		kafkaHost = "localhost"
+	}
+	if kafkaPort == "" {
+		kafkaPort = "9092"
 	}
 
-	pgpool := db.InitPostgres(pgUser, pgPass, pgHost, pgPort, pgDB)
+	kafkaBrokers := kafkaHost + ":" + kafkaPort
+
+	pgpool := db.InitPostgres(pgUser, pgPass, pgHost, pgDB)
 	if pgpool == nil {
 		log.Fatal("Posgres couldn't initialized.")
 		return
@@ -75,9 +77,6 @@ func main() {
 	ws.HandleEventController(r, engine, hub)
 
 	addr := ":8080"
-	if port != "" {
-		addr = ":" + port
-	}
 
 	log.Printf("Starting HTTP server on %s", addr)
 	if err := r.Run(addr); err != nil {

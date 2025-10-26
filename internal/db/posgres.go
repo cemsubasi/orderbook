@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func InitPostgres(pgUser string, pgPass string, pgHost string, pgPort string, pgDB string) *pgxpool.Pool {
+func InitPostgres(pgUser string, pgPass string, pgHost string, pgDB string) *pgxpool.Pool {
 	ctx := context.Background()
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pgUser, pgPass, pgHost, pgPort, pgDB)
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:5432/%s", pgUser, pgPass, pgHost, pgDB)
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		log.Println("pgx pool err:", err)
