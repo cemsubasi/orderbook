@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
@@ -13,7 +14,7 @@ import (
 type orderCreateRequest struct {
 	Symbol   string  `json:"symbol" binding:"required"`
 	Side     string  `json:"side" binding:"required"`
-	Price    float64 `json:"price"` // 0 for market
+	Price    float64 `json:"price" binding:"required"`
 	Quantity float64 `json:"quantity" binding:"required"`
 }
 
@@ -23,6 +24,36 @@ func HandleOrderController(r *gin.Engine, e *engine.Engine) {
 
 		if err := c.ShouldBindBodyWithJSON(&orderRequest); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		symbol := strings.ToUpper(strings.TrimSpace(orderRequest.Symbol))
+		side := strings.ToLower(strings.TrimSpace(orderRequest.Side))
+		price := orderRequest.Price
+		qty := orderRequest.Quantity
+
+		if symbol == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "symbol is required"})
+			return
+		}
+
+		if side != "buy" && side != "sell" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "side must be 'buy' or 'sell'"})
+			return
+		}
+
+		if price <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "price must be greater than zero"})
+			return
+		}
+
+		if qty <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "quantity must be greater than zero"})
+			return
+		}
+
+		if price > 1e9 || qty > 1e9 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "price/quantity too large"})
 			return
 		}
 

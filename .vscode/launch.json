@@ -10,6 +10,7 @@
             "env": {
                 "PG_HOST": "localhost",
                 "PG_PORT": "5432",
+                "PG_USER": "obuser",
                 "PG_PASS": "obpass",
                 "PG_DB": "orderbook",
                 "KAFKA_BROKERS": "localhost:9092",
@@ -17,10 +18,36 @@
             "buildFlags": ""
         },
         {
-            "name": "Launch File",
-            "type": "go",
+            "name": "React App: Chrome Debug",
+            "type": "pwa-chrome",
             "request": "launch",
-            "program": "${file}/cmd/main.go"
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}/frontend/src",
+            "breakpointLocations": true,
+            "sourceMaps": true,
+            "sourceMapPathOverrides": {
+                "webpack:///src/*": "${webRoot}/*"
+            }
+        },
+        {
+            "name": "React App: Attach to Chrome",
+            "type": "pwa-chrome",
+            "request": "attach",
+            "port": 9222,
+            "webRoot": "${workspaceFolder}/frontend/src",
+            "sourceMaps": true
+        },
+        {
+            "name": "React App: Node Debug (npm start)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "start"
+            ],
+            "cwd": "${workspaceFolder}/frontend",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
         }
     ]
 }

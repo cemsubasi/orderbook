@@ -66,6 +66,7 @@ services:
       PG_HOST: ${PG_HOST}
       PG_PORT: ${PG_PORT}
       PG_DB: ${PG_DB}
+      OB_PORT: ${OB_PORT}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
     depends_on:
       kafka:
@@ -74,5 +75,16 @@ services:
         condition: service_healthy
     entrypoint: >
       sh -c "./apply_migrations.sh && ./orderbook"
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - orderbook
+    environment:
+      - REACT_APP_API_URL=http://localhost:${OB_PORT}
 volumes:
   pgdata:

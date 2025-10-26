@@ -10,6 +10,7 @@ import (
 	"github.com/cemsubasi/orderbook/internal/engine"
 	"github.com/cemsubasi/orderbook/internal/event"
 	"github.com/cemsubasi/orderbook/internal/ws"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,6 +69,7 @@ func main() {
 	engine.Start(ctx)
 
 	r := gin.Default()
+	r.Use(cors.Default())
 
 	api.HandleOrderController(r, engine)
 	ws.HandleEventController(r, engine, hub)
