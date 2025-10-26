@@ -5,13 +5,14 @@
             "name": "Launch Package",
             "type": "go",
             "request": "launch",
-            "program": "${workspaceFolder}/cmd/main.go", // debuglamak istediğin klasör
+            "program": "${workspaceFolder}/cmd/main.go",
             "args": [],
             "env": {
-                "PG_USER": "obuser",
+                "PG_HOST": "localhost",
+                "PG_PORT": "5432",
                 "PG_PASS": "obpass",
-                "KAFKA_USER": "kafkauser",
-                "KAFKA_PASS": "kafkapass"
+                "PG_DB": "orderbook",
+                "KAFKA_BROKERS": "localhost:9092",
             },
             "buildFlags": ""
         },

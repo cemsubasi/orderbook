@@ -7,7 +7,7 @@ import (
 
 	"github.com/cemsubasi/orderbook/internal/engine"
 	"github.com/gin-gonic/gin"
-	"github.com/rs/xid"
+	"github.com/google/uuid"
 )
 
 type orderCreateRequest struct {
@@ -26,7 +26,7 @@ func HandleOrderController(r *gin.Engine, e *engine.Engine) {
 			return
 		}
 
-		id := xid.New().String()
+		id := uuid.New().String()
 		order := &engine.Order{
 			ID:        id,
 			Symbol:    orderRequest.Symbol,

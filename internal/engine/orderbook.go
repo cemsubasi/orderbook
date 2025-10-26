@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/xid"
+	"github.com/google/uuid"
 )
 
 type OrderBook struct {
@@ -60,7 +60,7 @@ func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
 				maker := priceLevel.Peek()
 				execQuantity := math.Min(remaining, maker.Remaining)
 				trade := &Trade{
-					ID:          xid.New().String(),
+					ID:          uuid.New().String(),
 					Symbol:      order.Symbol,
 					BuyOrderID:  order.ID,
 					SellOrderID: maker.ID,
@@ -94,7 +94,7 @@ func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
 				maker := priceLevel.Peek()
 				execQuantity := math.Min(remaining, maker.Remaining)
 				trade := &Trade{
-					ID:          xid.New().String(),
+					ID:          uuid.New().String(),
 					Symbol:      order.Symbol,
 					BuyOrderID:  maker.ID,
 					SellOrderID: order.ID,
@@ -179,8 +179,6 @@ func (orderBook *OrderBook) addPriceIfMissing(priceLevels map[float64]*PriceLeve
 }
 
 func (orderbook *OrderBook) Snapshot(depth int) (bids []map[string]any, asks []map[string]any) {
-	orderbook.mu.RLock()
-	defer orderbook.mu.RUnlock()
 	for i, priceLevel := range orderbook.buysPrices {
 		if i >= depth {
 			break
@@ -208,4 +206,46 @@ func (orderbook *OrderBook) Snapshot(depth int) (bids []map[string]any, asks []m
 	}
 
 	return
+}
+
+func (ob *OrderBook) AddOrder(order *Order) {
+	ob.ordersIndex[order.ID] = order
+
+	var levels map[float64]*PriceLevel
+	var prices *[]float64
+
+	if order.Side == Buy {
+		levels = ob.buys
+		prices = &ob.buysPrices
+	} else {
+		levels = ob.sells
+		prices = &ob.sellsPrices
+	}
+
+	level, exists := levels[order.Price]
+	if !exists {
+		level = &PriceLevel{}
+		level.Price = order.Price
+		levels[order.Price] = level
+		*prices = append(*prices, order.Price)
+
+		if order.Side == Buy {
+			sort.Slice(*prices, func(i, j int) bool { return (*prices)[i] > (*prices)[j] })
+		} else {
+			sort.Slice(*prices, func(i, j int) bool { return (*prices)[i] < (*prices)[j] })
+		}
+	}
+
+	level.Orders = append(level.Orders, order)
+}
+
+func SortOrderbooks(orderbooks map[string]*OrderBook) {
+	for _, ob := range orderbooks {
+		sort.Slice(ob.buysPrices, func(i, j int) bool {
+			return ob.buysPrices[i] > ob.buysPrices[j]
+		})
+		sort.Slice(ob.sellsPrices, func(i, j int) bool {
+			return ob.sellsPrices[i] < ob.sellsPrices[j]
+		})
+	}
 }
