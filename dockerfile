@@ -1,6 +1,9 @@
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
-
+# ARG PG_USER
+# ARG PG_PASS
+# ARG PG_HOST
+# ARG PG_DB
 FROM golang:1.24-alpine AS build
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -14,6 +17,11 @@ RUN curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/
 
 FROM alpine:latest
 WORKDIR /app
+# ENV PG_USER=${PG_USER}
+# ENV PG_PASS=${PG_PASS}
+# ENV PG_HOST=${PG_HOST}
+# ENV PG_DB=${PG_DB}
+
 COPY --from=build /app/orderbook .
 COPY --from=build /app/internal/db/migrations ./internal/db/migrations
 COPY apply_migrations.sh ./apply_migrations.sh

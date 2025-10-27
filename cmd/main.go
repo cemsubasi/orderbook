@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	port := os.Getenv("BE_PORT")
 	pgUser := os.Getenv("PG_USER")
 	pgPass := os.Getenv("PG_PASS")
 	pgDB := os.Getenv("PG_DB")
@@ -47,18 +48,18 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	hub := ws.NewWsHub()
-	ws.StartKafkaToWsWorker(hub, []string{kafkaBrokers}, "orderbook_events")
-
-	event.StartOrderEventKafkaConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
-	event.StartTradeEventKafkaConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
-
 	publisher := event.NewKafkaPublisher(
 		[]string{kafkaBrokers},
+
 		"orderbook_events",
 	)
 
 	defer publisher.Close()
+
+	hub := ws.NewWsHub()
+	event.StartKafkaWsConsumer(hub, []string{kafkaBrokers}, "orderbook_events")
+	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
+	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
 
 	books, err := db.LoadOrderBooks(pgpool)
 	if err != nil {
@@ -76,10 +77,12 @@ func main() {
 	api.HandleOrderController(r, engine)
 	ws.HandleEventController(r, engine, hub)
 
-	addr := ":8080"
+	if port == "" {
+		port = "8080"
+	}
 
-	log.Printf("Starting HTTP server on %s", addr)
-	if err := r.Run(addr); err != nil {
+	log.Printf("Starting HTTP server on %s", ":"+port)
+	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }

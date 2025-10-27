@@ -21,7 +21,7 @@ export default function OrderBooksView() {
 
   const fetchOrderBooks = async () => {
     try {
-      const res = await axios.get("http://localhost:8080/orderbooks");
+      const res = await axios.get(`http://${process.env.REACT_APP_API_URL}/orderbooks`);
       setOrderBooks(res.data);
     } catch (err) {
       console.error("Failed to fetch orderbooks:", err);
@@ -29,7 +29,7 @@ export default function OrderBooksView() {
   };
 
   const connectWebSocket = () => {
-    const ws = new WebSocket("ws://localhost:8080/event");
+    const ws = new WebSocket(`ws://${process.env.REACT_APP_API_URL}/event`);
     wsRef.current = ws;
 
     ws.onopen = () => console.log("WebSocket connected");
@@ -131,7 +131,7 @@ export default function OrderBooksView() {
     if (!buyPrice || !buyQty) return alert("Price ve Quantity girin");
 
     try {
-      await axios.post("http://localhost:8080/orders", {
+      await axios.post(`http://${process.env.REACT_APP_API_URL}/orders`, {
         symbol: buySymbol,
         side: type,
         price: parseFloat(buyPrice),

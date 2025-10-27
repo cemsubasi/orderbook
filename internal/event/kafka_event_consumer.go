@@ -7,91 +7,137 @@ import (
 	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
+	"github.com/cemsubasi/orderbook/internal/ws"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/segmentio/kafka-go"
 )
 
-func StartOrderEventKafkaConsumer(brokers []string, topic string, db *pgxpool.Pool) {
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: brokers,
-		Topic:   topic,
-		GroupID: "order_handler",
-	})
-
+func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
 	go func() {
-		ctx := context.Background()
-
 		for {
-			m, err := reader.ReadMessage(ctx)
-			if err != nil {
-				log.Println("kafka read err:", err)
-				continue
-			}
+			r := kafka.NewReader(kafka.ReaderConfig{
+				Brokers: brokers,
+				Topic:   topic,
+				GroupID: "ws_broadcast",
+			})
+			defer r.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			log.Println("Kafka ws consumer connected")
 
-			var event struct {
-				Type    string          `json:"type"`
-				Payload json.RawMessage `json:"payload"`
-			}
-			if err := json.Unmarshal(m.Value, &event); err != nil {
-				log.Println("unmarshal event err:", err)
-				continue
-			}
+			for {
+				m, err := r.ReadMessage(ctx)
+				if err != nil {
+					log.Println("kafka read err:", err)
+					log.Println("Reconnecting to Kafka in 1 second...")
+					_ = r.Close()
+					time.Sleep(1 * time.Second)
+					break
+				}
 
-			if event.Type != "order_added" {
-				continue
+				hub.Broadcast(m.Value)
 			}
-
-			var order engine.Order
-			if err := json.Unmarshal(event.Payload, &order); err != nil {
-				log.Println("unmarshal trade err:", err)
-				continue
-			}
-
-			persistOrder(ctx, db, order)
 		}
 	}()
 }
 
-func StartTradeEventKafkaConsumer(brokers []string, topic string, db *pgxpool.Pool) {
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: brokers,
-		Topic:   topic,
-		GroupID: "trade_handler",
-	})
+func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 
 	go func() {
-		ctx := context.Background()
 		for {
-			m, err := reader.ReadMessage(ctx)
-			if err != nil {
-				log.Println("kafka read err:", err)
-				continue
-			}
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Brokers: brokers,
+				Topic:   topic,
+				GroupID: "order_handler",
+			})
+			defer reader.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			log.Println("Kafka order consumer connected")
 
-			var event struct {
-				Type    string          `json:"type"`
-				Payload json.RawMessage `json:"payload"`
-			}
-			if err := json.Unmarshal(m.Value, &event); err != nil {
-				log.Println("unmarshal event err:", err)
-				continue
-			}
+			for {
+				m, err := reader.ReadMessage(ctx)
+				if err != nil {
+					log.Println("kafka read err:", err)
+					log.Println("Reconnecting to Kafka in 1 second...")
+					_ = reader.Close()
+					time.Sleep(1 * time.Second)
+					break
+				}
 
-			if event.Type != "order_matched" {
-				continue
-			}
+				var event struct {
+					Type    string          `json:"type"`
+					Payload json.RawMessage `json:"payload"`
+				}
+				if err := json.Unmarshal(m.Value, &event); err != nil {
+					log.Println("unmarshal event err:", err)
+					continue
+				}
 
-			var trade engine.Trade
-			if err := json.Unmarshal(event.Payload, &trade); err != nil {
-				log.Println("unmarshal trade err:", err)
-				continue
-			}
+				if event.Type != "order_added" {
+					continue
+				}
 
-			if trade.BuyOrderID != "" {
-				removeOrderIfFilled(ctx, db, trade.BuyOrderID, trade.Quantity)
+				var order engine.Order
+				if err := json.Unmarshal(event.Payload, &order); err != nil {
+					log.Println("unmarshal trade err:", err)
+					continue
+				}
+
+				persistOrder(ctx, db, order)
 			}
-			if trade.SellOrderID != "" {
-				removeOrderIfFilled(ctx, db, trade.SellOrderID, trade.Quantity)
+		}
+	}()
+}
+
+func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
+	go func() {
+		for {
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Brokers: brokers,
+				Topic:   topic,
+				GroupID: "trade_handler",
+			})
+			defer reader.Close()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			log.Println("Kafka trade consumer connected")
+
+			for {
+				m, err := reader.ReadMessage(ctx)
+				if err != nil {
+					log.Println("kafka read err:", err)
+					log.Println("Reconnecting to Kafka in 1 second...")
+					_ = reader.Close()
+					time.Sleep(1 * time.Second)
+					break
+				}
+
+				var event struct {
+					Type    string          `json:"type"`
+					Payload json.RawMessage `json:"payload"`
+				}
+				if err := json.Unmarshal(m.Value, &event); err != nil {
+					log.Println("unmarshal event err:", err)
+					continue
+				}
+
+				if event.Type != "order_matched" {
+					continue
+				}
+
+				var trade engine.Trade
+				if err := json.Unmarshal(event.Payload, &trade); err != nil {
+					log.Println("unmarshal trade err:", err)
+					continue
+				}
+
+				if trade.BuyOrderID != "" {
+					removeOrderIfFilled(ctx, db, trade.BuyOrderID, trade.Quantity)
+				}
+				if trade.SellOrderID != "" {
+					removeOrderIfFilled(ctx, db, trade.SellOrderID, trade.Quantity)
+				}
 			}
 		}
 	}()

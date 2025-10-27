@@ -1,13 +1,11 @@
 package ws
 
 import (
-	"context"
 	"net/http"
 	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/segmentio/kafka-go"
 )
 
 type WsHub struct {
@@ -38,24 +36,4 @@ func (hub *WsHub) HandleWs(c *gin.Context) {
 	hub.mu.Lock()
 	hub.clients[conn] = true
 	hub.mu.Unlock()
-}
-
-func StartKafkaToWsWorker(hub *WsHub, brokers []string, topic string) {
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: brokers,
-		Topic:   topic,
-		GroupID: "ws_broadcast",
-	})
-
-	go func() {
-		ctx := context.Background()
-		for {
-			m, err := r.ReadMessage(ctx)
-			if err != nil {
-				break
-			}
-
-			hub.Broadcast(m.Value)
-		}
-	}()
 }
