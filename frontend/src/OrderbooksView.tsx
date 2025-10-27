@@ -138,8 +138,6 @@ export default function OrderBooksView() {
         quantity: parseFloat(buyQty),
       });
 
-      // setBuyPrice("1");
-      // setBuyQty("1");
       alert(`${type === "buy" ? "Buy" : "Sell"} order sent!`);
     } catch (err) {
       console.error(`Failed to place ${type} order:`, err);
@@ -160,14 +158,20 @@ export default function OrderBooksView() {
   const thTdStyle: React.CSSProperties = { border: "1px solid #ccc", padding: "4px 8px" };
   const gridStyle: React.CSSProperties = { display: "flex", gap: "16px" };
   const columnStyle: React.CSSProperties = { flex: 1 };
+  const gridContainerStyle: React.CSSProperties = {
+    maxWidth: "400px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px",
+  };
   const formStyle: React.CSSProperties = { marginBottom: "24px", display: "flex", gap: "8px", alignItems: "center" };
   const inputStyle: React.CSSProperties = { padding: "4px 8px", border: "1px solid #ccc", borderRadius: "4px" };
   const buttonBuyStyle: React.CSSProperties = { padding: "6px 12px", borderRadius: "4px", cursor: "pointer", backgroundColor: "green", color: "#fff", border: "none" };
   const buttonSellStyle: React.CSSProperties = { padding: "6px 12px", borderRadius: "4px", cursor: "pointer", backgroundColor: "red", color: "#fff", border: "none" };
-
+  const h1Style: React.CSSProperties = { fontWeight: "bold", marginBottom: "30px", textAlign: "center" };
+  const h2Style: React.CSSProperties = { fontSize: "20px", fontWeight: "600", marginBottom: "8px" };
+  const h3RedStyle: React.CSSProperties = { color: "red", fontWeight: "500", marginBottom: "4px" };
+  const h3GreenStyle: React.CSSProperties = { color: "green", fontWeight: "500", marginBottom: "4px" };
   return (
     <div style={containerStyle}>
-      <h1 style={{ fontWeight: "bold", marginBottom: "30px", textAlign: "center" }}>Order Books</h1>
+      <h1 style={h1Style}>Order Books</h1>
 
       <div style={formStyle}>
         <span>Symbol:</span>
@@ -184,21 +188,14 @@ export default function OrderBooksView() {
         </button>
       </div>
 
-      <div
-        style={{
-          maxWidth: "400px",
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "24px",
-        }}
-      >
+      <div style={gridContainerStyle}>
         {Object.entries(orderBooks).map(([symbol, book]) => (
           <div key={symbol} style={cardStyle}>
-            <h2 style={{ fontSize: "20px", fontWeight: "600", marginBottom: "8px" }}>{symbol}</h2>
+            <h2 style={h2Style}>{symbol}</h2>
 
             <div style={gridStyle}>
               <div style={columnStyle}>
-                <h3 style={{ color: "green", fontWeight: "500", marginBottom: "4px" }}>Bids</h3>
+                <h3 style={h3GreenStyle}>Bids</h3>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
@@ -218,7 +215,7 @@ export default function OrderBooksView() {
               </div>
 
               <div style={columnStyle}>
-                <h3 style={{ color: "red", fontWeight: "500", marginBottom: "4px" }}>Asks</h3>
+                <h3 style={h3RedStyle}>Asks</h3>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
