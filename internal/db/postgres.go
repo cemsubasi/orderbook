@@ -21,7 +21,7 @@ func InitPostgres(pgUser string, pgPass string, pgHost string, pgDB string) *pgx
 	return pool
 }
 
-func LoadOrderBooks(pool *pgxpool.Pool) (map[string]*engine.OrderBook, error) {
+func RetrieveOrderBooks(pool *pgxpool.Pool) (map[string]*engine.OrderBook, error) {
 	rows, err := pool.Query(context.Background(), `
 		SELECT id, symbol, side, price, quantity, remaining
 		FROM orders

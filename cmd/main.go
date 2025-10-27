@@ -61,7 +61,7 @@ func main() {
 	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
 	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
 
-	books, err := db.LoadOrderBooks(pgpool)
+	books, err := db.RetrieveOrderBooks(pgpool)
 	if err != nil {
 		log.Fatal("Couldn't load existing orders from DB:", err)
 		return
