@@ -49,17 +49,25 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	publisher := event.NewKafkaPublisher(
-		[]string{kafkaBrokers},
-		"orderbook_events",
-	)
+	publishers := func() map[string]engine.EventWriter {
+		return map[string]engine.EventWriter{
+			engine.OrderTopic:    event.NewKafkaPublisher([]string{kafkaBrokers}, engine.OrderTopic),
+			engine.TradeTopic:    event.NewKafkaPublisher([]string{kafkaBrokers}, engine.TradeTopic),
+			engine.SnapshotTopic: event.NewKafkaPublisher([]string{kafkaBrokers}, engine.SnapshotTopic),
+		}
+	}()
 
-	defer publisher.Close()
+	// publisher := event.NewKafkaPublisher(
+	// 	[]string{kafkaBrokers},
+	// 	"orderbook_events",
+	// )
+
+	// defer publisher.Close()
 
 	hub := ws.NewWsHub()
-	event.StartKafkaWsConsumer(hub, []string{kafkaBrokers}, "orderbook_events")
-	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
-	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, "orderbook_events", pgpool)
+	event.StartKafkaWsConsumer(hub, []string{kafkaBrokers})
+	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, pgpool)
+	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, pgpool)
 
 	books, err := db.RetrieveOrderBooks(pgpool)
 	if err != nil {
@@ -67,10 +75,10 @@ func main() {
 		return
 	}
 
-	engine := engine.NewEngine(publisher)
+	engine := engine.NewEngine(publishers)
 	engine.Setup(books)
 	// go engine.Monitor()
-	engine.Start(ctx)
+	engine.Start(ctx, false)
 
 	gin.SetMode(gin.ReleaseMode)
 

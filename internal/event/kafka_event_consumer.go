@@ -12,7 +12,7 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
+func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string) {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -20,7 +20,7 @@ func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
 			log.Println("Creating reader...")
 			r := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
-				Topic:   topic,
+				Topic:   engine.SnapshotTopic,
 				GroupID: "ws_broadcast",
 			})
 			defer r.Close()
@@ -42,7 +42,7 @@ func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
 	}()
 }
 
-func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
+func StartKafkaOrderConsumer(brokers []string, db *pgxpool.Pool) {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -51,7 +51,7 @@ func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 			log.Println("Creating reader...")
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
-				Topic:   topic,
+				Topic:   engine.OrderTopic,
 				GroupID: "order_handler",
 			})
 			defer reader.Close()
@@ -77,6 +77,7 @@ func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 				}
 
 				if event.Type != "order_added" {
+					log.Fatal("The kafka message is in the wrong topic")
 					return
 				}
 
@@ -92,7 +93,7 @@ func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 	}()
 }
 
-func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
+func StartKafkaTradeConsumer(brokers []string, db *pgxpool.Pool) {
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -100,7 +101,7 @@ func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 			log.Println("Creating reader...")
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
-				Topic:   topic,
+				Topic:   engine.TradeTopic,
 				GroupID: "trade_handler",
 			})
 
@@ -127,6 +128,7 @@ func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 				}
 
 				if event.Type != "order_matched" {
+					log.Fatal("The kafka message is in the wrong topic")
 					continue
 				}
 
