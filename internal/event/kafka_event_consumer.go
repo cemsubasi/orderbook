@@ -14,15 +14,16 @@ import (
 
 func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		for {
+			log.Println("Creating reader...")
 			r := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
 				Topic:   topic,
 				GroupID: "ws_broadcast",
 			})
 			defer r.Close()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			log.Println("Kafka ws consumer connected")
 
 			for {
@@ -42,17 +43,18 @@ func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string, topic string) {
 }
 
 func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
-
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		for {
+			log.Println("Creating reader...")
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
 				Topic:   topic,
 				GroupID: "order_handler",
 			})
 			defer reader.Close()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			log.Println("Kafka order consumer connected")
 
 			for {
@@ -92,15 +94,17 @@ func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 
 func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		for {
+			log.Println("Creating reader...")
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers: brokers,
 				Topic:   topic,
 				GroupID: "trade_handler",
 			})
+
 			defer reader.Close()
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 			log.Println("Kafka trade consumer connected")
 
 			for {

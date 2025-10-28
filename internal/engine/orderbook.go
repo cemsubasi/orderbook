@@ -3,7 +3,6 @@ package engine
 import (
 	"math"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,16 +14,13 @@ type OrderBook struct {
 	buysPrices  []float64
 	sells       map[float64]*PriceLevel // price -> level (sell sorted ascending)
 	sellsPrices []float64
-	ordersIndex map[string]*Order // quick lookup for cancel
-	mu          sync.RWMutex
 }
 
 func NewOrderBook(symbol string) *OrderBook {
 	return &OrderBook{
-		Symbol:      symbol,
-		buys:        make(map[float64]*PriceLevel),
-		sells:       make(map[float64]*PriceLevel),
-		ordersIndex: make(map[string]*Order),
+		Symbol: symbol,
+		buys:   make(map[float64]*PriceLevel),
+		sells:  make(map[float64]*PriceLevel),
 	}
 }
 
@@ -48,8 +44,6 @@ func (engine *Engine) GetBooks() map[string]*OrderBook {
 }
 
 func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
-	orderbook.mu.Lock()
-	defer orderbook.mu.Unlock()
 	var trades []*Trade
 	remaining := order.Remaining
 	if order.Side == Buy {
@@ -74,7 +68,6 @@ func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
 				remaining -= execQuantity
 				if maker.Remaining <= 0 {
 					priceLevel.Dequeue()
-					delete(orderbook.ordersIndex, maker.ID)
 				}
 			}
 
@@ -108,7 +101,6 @@ func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
 				remaining -= execQuantity
 				if maker.Remaining <= 0 {
 					priceLevel.Dequeue()
-					delete(orderbook.ordersIndex, maker.ID)
 				}
 			}
 
@@ -131,8 +123,6 @@ func (orderbook *OrderBook) MatchIncoming(order *Order) []*Trade {
 			orderbook.addPriceIfMissing(orderbook.sells, order.Price, false)
 			orderbook.sells[order.Price].Enqueue(order)
 		}
-
-		orderbook.ordersIndex[order.ID] = order
 	}
 
 	return trades
@@ -209,8 +199,6 @@ func (orderbook *OrderBook) Snapshot(depth int) (bids []map[string]any, asks []m
 }
 
 func (ob *OrderBook) AddOrder(order *Order) {
-	ob.ordersIndex[order.ID] = order
-
 	var levels map[float64]*PriceLevel
 	var prices *[]float64
 
