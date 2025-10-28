@@ -52,8 +52,6 @@ func (engine *Engine) Start(ctx context.Context) {
 					go engine.publishEvent("order_added", order)
 				}
 
-				// atomic.AddInt64(&engine.processed, 1)
-
 			case <-ctx.Done():
 				return
 			}

@@ -51,7 +51,6 @@ func main() {
 
 	publisher := event.NewKafkaPublisher(
 		[]string{kafkaBrokers},
-
 		"orderbook_events",
 	)
 

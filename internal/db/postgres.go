@@ -22,30 +22,37 @@ func InitPostgres(pgUser string, pgPass string, pgHost string, pgDB string) *pgx
 }
 
 func RetrieveOrderBooks(pool *pgxpool.Pool) (map[string]*engine.OrderBook, error) {
-	rows, err := pool.Query(context.Background(), `
-       SELECT o.id, o.symbol, o.side, o.price, o.quantity,
-       (o.quantity - COALESCE(SUM(
-           CASE 
-               WHEN o.id = t.buy_order_id THEN t.quantity
-               WHEN o.id = t.sell_order_id THEN t.quantity
-               ELSE 0
-           END
-       ),0)) AS remaining
+	query := `
+     SELECT 
+    o.id,
+    o.symbol,
+    o.side,
+    o.price,
+    o.quantity,
+    o.quantity - COALESCE(matched.total_traded, 0) AS remaining
 FROM orders o
-LEFT JOIN trades t
-       ON o.id = t.buy_order_id OR o.id = t.sell_order_id
-GROUP BY o.id
-HAVING (o.quantity - COALESCE(SUM(
-           CASE 
-               WHEN o.id = t.buy_order_id THEN t.quantity
-               WHEN o.id = t.sell_order_id THEN t.quantity
-               ELSE 0
-           END
-       ),0)) > 0
+LEFT JOIN (
+    SELECT 
+        buy_order_id AS order_id,
+        SUM(quantity) AS total_traded
+    FROM trades
+    GROUP BY buy_order_id
+
+    UNION ALL
+
+    SELECT 
+        sell_order_id AS order_id,
+        SUM(quantity) AS total_traded
+    FROM trades
+    GROUP BY sell_order_id
+) matched ON o.id = matched.order_id
+WHERE (o.quantity - COALESCE(matched.total_traded, 0)) > 0
 ORDER BY o.symbol,
          CASE WHEN o.side='buy' THEN -o.price ELSE o.price END,
          o.created_at;
-    `)
+    `
+
+	rows, err := pool.Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("query orders err: %w", err)
 	}
