@@ -23,12 +23,29 @@ func InitPostgres(pgUser string, pgPass string, pgHost string, pgDB string) *pgx
 
 func RetrieveOrderBooks(pool *pgxpool.Pool) (map[string]*engine.OrderBook, error) {
 	rows, err := pool.Query(context.Background(), `
-		SELECT id, symbol, side, price, quantity, remaining
-		FROM orders
-		WHERE remaining > 0
-		ORDER BY symbol, 
-			CASE WHEN side = 'buy' THEN -price ELSE price END ASC,
-			created_at ASC`)
+       SELECT o.id, o.symbol, o.side, o.price, o.quantity,
+       (o.quantity - COALESCE(SUM(
+           CASE 
+               WHEN o.id = t.buy_order_id THEN t.quantity
+               WHEN o.id = t.sell_order_id THEN t.quantity
+               ELSE 0
+           END
+       ),0)) AS remaining
+FROM orders o
+LEFT JOIN trades t
+       ON o.id = t.buy_order_id OR o.id = t.sell_order_id
+GROUP BY o.id
+HAVING (o.quantity - COALESCE(SUM(
+           CASE 
+               WHEN o.id = t.buy_order_id THEN t.quantity
+               WHEN o.id = t.sell_order_id THEN t.quantity
+               ELSE 0
+           END
+       ),0)) > 0
+ORDER BY o.symbol,
+         CASE WHEN o.side='buy' THEN -o.price ELSE o.price END,
+         o.created_at;
+    `)
 	if err != nil {
 		return nil, fmt.Errorf("query orders err: %w", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 
@@ -69,10 +70,16 @@ func main() {
 
 	engine := engine.NewEngine(publisher)
 	engine.Setup(books)
+	// go engine.Monitor()
 	engine.Start(ctx)
 
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.Use(cors.Default())
+	gin.DefaultWriter = io.Discard
+	gin.DefaultErrorWriter = io.Discard
 
 	api.HandleOrderController(r, engine)
 	ws.HandleEventController(r, engine, hub)

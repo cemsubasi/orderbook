@@ -21,7 +21,7 @@ export default function OrderBooksView() {
 
   const fetchOrderBooks = async () => {
     try {
-      const res = await axios.get(`http://${process.env.REACT_APP_API_URL}/orderbooks`);
+      const res = await axios.get(`http://${process.env.REACT_APP_API_URL}/orderbook`);
       setOrderBooks(res.data);
     } catch (err) {
       console.error("Failed to fetch orderbooks:", err);

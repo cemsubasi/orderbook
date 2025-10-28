@@ -77,10 +77,10 @@ func StartKafkaOrderConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 				}
 
 				if event.Type != "order_added" {
-					continue
+					return
 				}
 
-				var order engine.Order
+				var order *engine.Order
 				if err := json.Unmarshal(event.Payload, &order); err != nil {
 					log.Println("unmarshal trade err:", err)
 					continue
@@ -136,47 +136,53 @@ func StartKafkaTradeConsumer(brokers []string, topic string, db *pgxpool.Pool) {
 					continue
 				}
 
-				if trade.BuyOrderID != "" {
-					removeOrderIfFilled(ctx, db, trade.BuyOrderID, trade.Quantity)
-				}
-				if trade.SellOrderID != "" {
-					removeOrderIfFilled(ctx, db, trade.SellOrderID, trade.Quantity)
-				}
+				persistTrade(ctx, db, &trade)
 			}
 		}
 	}()
 }
 
-func persistOrder(ctx context.Context, db *pgxpool.Pool, order engine.Order) {
+func persistOrder(ctx context.Context, db *pgxpool.Pool, order *engine.Order) {
 	_, err := db.Exec(ctx, `INSERT INTO orders (id, symbol, side, price, quantity, remaining, created_at) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		order.ID, order.Symbol, order.Side, order.Price, order.Quantity, order.Remaining, time.Now().UTC())
 	if err != nil {
 		log.Println("persist order err:", err)
 	} else {
-		log.Printf("Order %s persisted/updated with remaining %f", order.ID, order.Remaining)
+		// log.Printf("Order %s persisted/updated with remaining %f", order.ID, order.Remaining)
 	}
 }
 
-func removeOrderIfFilled(ctx context.Context, db *pgxpool.Pool, orderID string, filledQty float64) {
-	var remaining float64
-	err := db.QueryRow(ctx, `SELECT remaining FROM orders WHERE id=$1`, orderID).Scan(&remaining)
-	if err != nil {
-		return
-	}
+// func removeOrderIfFilled(ctx context.Context, db *pgxpool.Pool, orderID string, filledQty float64) {
+// 	var remaining float64
+// 	err := db.QueryRow(ctx, `SELECT remaining FROM orders WHERE id=$1`, orderID).Scan(&remaining)
+// 	if err != nil {
+// 		return
+// 	}
 
-	remaining -= filledQty
-	if remaining <= 0 {
-		_, err := db.Exec(ctx, `DELETE FROM orders WHERE id=$1`, orderID)
-		if err != nil {
-			log.Println("delete order err:", err)
-		} else {
-			log.Printf("Order %s fully filled and removed", orderID)
-		}
+// 	remaining -= filledQty
+// 	if remaining <= 0 {
+// 		_, err := db.Exec(ctx, `DELETE FROM orders WHERE id=$1`, orderID)
+// 		if err != nil {
+// 			log.Println("delete order err:", err)
+// 		} else {
+// 			// log.Printf("Order %s fully filled and removed", orderID)
+// 		}
+// 	} else {
+// 		_, err := db.Exec(ctx, `UPDATE orders SET remaining=$1 WHERE id=$2`, remaining, orderID)
+// 		if err != nil {
+// 			log.Println("update remaining err:", err)
+// 		}
+// 	}
+// }
+
+func persistTrade(ctx context.Context, db *pgxpool.Pool, trade *engine.Trade) {
+	_, err := db.Exec(ctx, `INSERT INTO trades (id, symbol, buy_order_id, sell_order_id, price, quantity, executed_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		trade.ID, trade.Symbol, trade.BuyOrderID, trade.SellOrderID, trade.Price, trade.Quantity, trade.ExecutedAt)
+	if err != nil {
+		log.Println("persist trade err:", err)
 	} else {
-		_, err := db.Exec(ctx, `UPDATE orders SET remaining=$1 WHERE id=$2`, remaining, orderID)
-		if err != nil {
-			log.Println("update remaining err:", err)
-		}
+		// log.Printf("Trade %s persisted", trade.ID)
 	}
 }
