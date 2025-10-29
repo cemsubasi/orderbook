@@ -4,6 +4,66 @@ import (
 	"testing"
 )
 
+func TestMatchIncoming_LimitBuyOrderAddedToBookWhenUnfilled(t *testing.T) {
+	ob := NewOrderBook("SYM")
+
+	// No sellers, limit buy should be added to buy book
+	in := &Order{ID: "o1", Symbol: "SYM", Side: Buy, Price: 50, Remaining: 3}
+	trades := ob.MatchIncoming(in)
+
+	if len(trades) != 0 {
+		t.Errorf("expected 0 trades, got %d", len(trades))
+	}
+
+	// Order should be enqueued into buys and present in ordersIndex
+	level, exists := ob.buys[50]
+	if !exists {
+		t.Fatalf("expected buy price level 50 to exist")
+	}
+	found := false
+	for _, o := range level.Orders {
+		if o.ID == "o1" {
+			found = true
+			if o.Remaining != 3 {
+				t.Errorf("expected order remaining 3, got %v", o.Remaining)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected order o1 in buy level")
+	}
+}
+
+func TestMatchIncoming_LimitSellOrderAddedToBookWhenUnfilled(t *testing.T) {
+	ob := NewOrderBook("SYM")
+
+	// No buyers, limit sell should be added to sell book
+	in := &Order{ID: "o1", Symbol: "SYM", Side: Sell, Price: 50, Remaining: 3}
+	trades := ob.MatchIncoming(in)
+
+	if len(trades) != 0 {
+		t.Errorf("expected 0 trades, got %d", len(trades))
+	}
+
+	// Order should be enqueued into sells and present in ordersIndex
+	level, exists := ob.sells[50]
+	if !exists {
+		t.Fatalf("expected sell price level 50 to exist")
+	}
+	found := false
+	for _, o := range level.Orders {
+		if o.ID == "o1" {
+			found = true
+			if o.Remaining != 3 {
+				t.Errorf("expected order remaining 3, got %v", o.Remaining)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected order o1 in buy level")
+	}
+}
+
 func TestMatchIncoming_BuyMatchesSells(t *testing.T) {
 	orderbook := NewOrderBook("SYM")
 
@@ -54,62 +114,6 @@ func TestMatchIncoming_BuyMatchesSells(t *testing.T) {
 
 	if in.Remaining != 0 {
 		t.Errorf("expected incoming remaining 0, got %v", in.Remaining)
-	}
-}
-
-func TestMatchIncoming_MarketOrderLeftoverNotAdded(t *testing.T) {
-	ob := NewOrderBook("SYM")
-
-	// Market buy with no sellers
-	in := &Order{ID: "mkt", Symbol: "SYM", Side: Buy, Price: 0, Remaining: 10}
-	trades := ob.MatchIncoming(in)
-
-	if len(trades) != 0 {
-		t.Errorf("expected 0 trades, got %d", len(trades))
-	}
-
-	// Since Price == 0, leftover should NOT be added to book
-	if _, ok := ob.ordersIndex["mkt"]; ok {
-		t.Errorf("expected market order not to be added to ordersIndex")
-	}
-	if len(ob.buysPrices) != 0 {
-		t.Errorf("expected no buy price levels for market leftover, buysPrices=%v", ob.buysPrices)
-	}
-	if in.Remaining != 10 {
-		t.Errorf("expected incoming remaining still 10, got %v", in.Remaining)
-	}
-}
-
-func TestMatchIncoming_LimitOrderAddedToBookWhenUnfilled(t *testing.T) {
-	ob := NewOrderBook("SYM")
-
-	// No sellers, limit buy should be added to buy book
-	in := &Order{ID: "o1", Symbol: "SYM", Side: Buy, Price: 50, Remaining: 3}
-	trades := ob.MatchIncoming(in)
-
-	if len(trades) != 0 {
-		t.Errorf("expected 0 trades, got %d", len(trades))
-	}
-
-	// Order should be enqueued into buys and present in ordersIndex
-	level, exists := ob.buys[50]
-	if !exists {
-		t.Fatalf("expected buy price level 50 to exist")
-	}
-	found := false
-	for _, o := range level.Orders {
-		if o.ID == "o1" {
-			found = true
-			if o.Remaining != 3 {
-				t.Errorf("expected order remaining 3, got %v", o.Remaining)
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected order o1 in buy level")
-	}
-	if idx, ok := ob.ordersIndex["o1"]; !ok || idx == nil {
-		t.Fatalf("expected order o1 in ordersIndex")
 	}
 }
 

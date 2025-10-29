@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
 	"github.com/gin-gonic/gin"
@@ -65,7 +64,6 @@ func HandleOrderController(r *gin.Engine, e *engine.Engine) {
 			Price:     orderRequest.Price,
 			Quantity:  orderRequest.Quantity,
 			Remaining: orderRequest.Quantity,
-			CreatedAt: time.Now().UTC(),
 		}
 
 		e.Submit(order)
@@ -80,24 +78,12 @@ func HandleOrderController(r *gin.Engine, e *engine.Engine) {
 			fmt.Sscanf(depthQ, "%d", &depth)
 		}
 
-		if symbol == "" {
-			books := e.GetBooks()
-			result := make(map[string]gin.H)
-			for sym, book := range books {
-				bids, asks := book.Snapshot(depth)
-				result[sym] = gin.H{"bids": bids, "asks": asks}
-			}
-
-			c.JSON(http.StatusOK, result)
-			return
-		}
-
 		book := e.GetBook(symbol)
 		bids, asks := book.Snapshot(depth)
 		c.JSON(http.StatusOK, gin.H{"symbol": symbol, "bids": bids, "asks": asks})
 	})
 
-	r.GET("/orderbooks", func(c *gin.Context) {
+	r.GET("/orderbook", func(c *gin.Context) {
 		depthQ := c.Query("depth")
 		depth := 10
 		if depthQ != "" {

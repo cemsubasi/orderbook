@@ -16,7 +16,7 @@ A real-time order book application with Go backend, React frontend, Kafka for ev
 ### Setup
 1.	Clone the repository:
 ```bash
-git clone https://github.com/cemsubasi/orderbook
+git clone https://github.com/cemsubasi/orderbook.git
 cd orderbook
 ```
 
@@ -98,11 +98,11 @@ It provides an order matching engine with persistence and real-time updates via 
 Modules
 - engine/ → Core order matching logic. Manages in-memory order books and emits events (e.g., order_added, trade_executed) through Kafka.
 - event/ → Handles Kafka integration.
-- KafkaPublisher: publishes order/trade events.
-- KafkaConsumers: listen to events and perform side effects (DB persistence, WebSocket push).
+  - KafkaPublisher: publishes order/trade events.
+  - KafkaConsumers: listen to events and perform side effects (DB persistence).
 - db/ → Database layer using pgxpool. Provides InitPostgres and RetrieveOrderBooks.
 - api/ → HTTP controllers for handling external REST requests.
-- ws/ → Real-time WebSocket hub for broadcasting order/trade updates.
+- ws/ → Real-time WebSocket hub for broadcasting snapshot updates.
 - main.go → Application entrypoint. Initializes dependencies, starts Kafka consumers/publisher, loads state from DB, and runs the HTTP server.
 
 Data Flow

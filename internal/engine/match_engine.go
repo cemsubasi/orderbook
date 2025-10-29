@@ -2,24 +2,31 @@ package engine
 
 import (
 	"context"
-	"log"
 )
 
 type Engine struct {
 	books          map[string]*OrderBook
 	orderChannel   chan *Order
-	eventPublisher EventWriter
+	orderPublisher EventWriter
+	tradePublisher EventWriter
 }
 
 type EventWriter interface {
 	Publish(eventType string, payload any) error
 }
 
-func NewEngine(eventPublisher EventWriter) *Engine {
+const (
+	SnapshotTopic = "orderbook_snapshot"
+	OrderTopic    = "order_events"
+	TradeTopic    = "trade_events"
+)
+
+func NewEngine(eventPublishers map[string]EventWriter) *Engine {
 	return &Engine{
 		books:          make(map[string]*OrderBook),
-		orderChannel:   make(chan *Order, 1024),
-		eventPublisher: eventPublisher,
+		orderChannel:   make(chan *Order, 100000),
+		orderPublisher: eventPublishers[OrderTopic],
+		tradePublisher: eventPublishers[TradeTopic],
 	}
 }
 
@@ -32,16 +39,16 @@ func (engine *Engine) Start(ctx context.Context) {
 		for {
 			select {
 			case order := <-engine.orderChannel:
-				log.Printf("Incoming OrderID is: %s, OrderSymbol is: %s", order.ID, order.Symbol)
 
 				orderbook := engine.GetBook(order.Symbol)
 				trades := orderbook.MatchIncoming(order)
-				for _, trade := range trades {
-					engine.publishEvent("order_matched", trade)
+
+				if len(trades) > 0 {
+					go engine.publishTradeEvent("order_matched", trades)
 				}
 
 				if order.Remaining > 0 && order.Price > 0 {
-					engine.publishEvent("order_added", order)
+					go engine.publishOrderEvent("order_added", order)
 				}
 
 			case <-ctx.Done():
@@ -55,9 +62,16 @@ func (engine *Engine) Submit(order *Order) {
 	engine.orderChannel <- order
 }
 
-func (e *Engine) publishEvent(eventType string, payload any) {
-	if e.eventPublisher == nil {
+func (e *Engine) publishOrderEvent(eventType string, payload any) {
+	if e.orderPublisher == nil {
 		return
 	}
-	_ = e.eventPublisher.Publish(eventType, payload)
+	e.orderPublisher.Publish(eventType, payload)
+}
+
+func (e *Engine) publishTradeEvent(eventType string, payload any) {
+	if e.tradePublisher == nil {
+		return
+	}
+	e.tradePublisher.Publish(eventType, payload)
 }

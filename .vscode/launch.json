@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Package",
+            "name": "Backend",
             "type": "go",
             "request": "launch",
             "program": "${workspaceFolder}/cmd/main.go",
@@ -18,7 +18,7 @@
             "buildFlags": ""
         },
         {
-            "name": "React App: Chrome Debug",
+            "name": "React App: Chrome Debugger",
             "type": "pwa-chrome",
             "request": "launch",
             "url": "http://localhost:3000",
@@ -38,7 +38,7 @@
             "sourceMaps": true
         },
         {
-            "name": "React App: Node Debug (npm start)",
+            "name": "Frontend",
             "type": "node",
             "request": "launch",
             "runtimeExecutable": "npm",
@@ -47,7 +47,11 @@
             ],
             "cwd": "${workspaceFolder}/frontend",
             "console": "integratedTerminal",
-            "internalConsoleOptions": "neverOpen"
+            "internalConsoleOptions": "neverOpen",
+            "env": {
+                "REACT_APP_API_URL": "localhost:8080",
+                "NODE_ENV": "development"
+            }
         }
     ]
 }

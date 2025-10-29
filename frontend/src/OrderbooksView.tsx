@@ -3,28 +3,34 @@ import axios from "axios";
 
 export default function OrderBooksView() {
   const [orderBooks, setOrderBooks] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
   const [buySymbol, setBuySymbol] = useState("BTC");
   const [buyPrice, setBuyPrice] = useState("1");
   const [buyQty, setBuyQty] = useState("1");
+
   const wsRef = useRef<WebSocket | null>(null);
-  const wsStarted = useRef(false);
+  const wsRetryTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (wsStarted.current) return;
-    wsStarted.current = true;
-
     fetchOrderBooks();
     connectWebSocket();
 
-    return () => wsRef.current?.close();
+    return () => {
+      wsRef.current?.close();
+      if (wsRetryTimer.current) clearTimeout(wsRetryTimer.current);
+    };
   }, []);
 
   const fetchOrderBooks = async () => {
     try {
-      const res = await axios.get(`http://${process.env.REACT_APP_API_URL}/orderbooks`);
+      const res = await axios.get(`http://${process.env.REACT_APP_API_URL}/orderbook`);
       setOrderBooks(res.data);
+      setLoading(false);
     } catch (err) {
       console.error("Failed to fetch orderbooks:", err);
+      // 1 saniye sonra tekrar dene
+      setTimeout(fetchOrderBooks, 1000);
+      setLoading(true);
     }
   };
 
@@ -32,9 +38,26 @@ export default function OrderBooksView() {
     const ws = new WebSocket(`ws://${process.env.REACT_APP_API_URL}/event`);
     wsRef.current = ws;
 
-    ws.onopen = () => console.log("WebSocket connected");
-    ws.onclose = () => console.log("WebSocket closed");
-    ws.onerror = (err) => console.error("WebSocket error", err);
+    ws.onopen = () => {
+      setLoading(false);
+      console.log("WebSocket connected");
+      if (wsRetryTimer.current) {
+        clearTimeout(wsRetryTimer.current);
+        wsRetryTimer.current = null;
+      }
+    };
+
+    ws.onclose = () => {
+      setLoading(true);
+      console.log("WebSocket closed, retrying in 1s...");
+      wsRetryTimer.current = setTimeout(connectWebSocket, 1000);
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error", err);
+      ws.close();
+      setLoading(true);
+    };
 
     ws.onmessage = (msg) => {
       try {
@@ -47,84 +70,14 @@ export default function OrderBooksView() {
   };
 
   const EPS = 1e-8;
-
   const priceEquals = (a: number, b: number) => Math.abs(a - b) < EPS;
 
   const handleEvent = (event: any) => {
     const { type, payload } = event;
-    const { symbol, side, price, remaining, quantity } = payload;
 
-    setOrderBooks(prev => {
-      const prevSymbol = prev[symbol] || {};
-      const bidsArr = Array.isArray(prevSymbol.bids) ? [...prevSymbol.bids] : [];
-      const asksArr = Array.isArray(prevSymbol.asks) ? [...prevSymbol.asks] : [];
-
-      let isBid: boolean | null = null;
-      if (side === "buy") isBid = true;
-      else if (side === "sell") isBid = false;
-      else if (type === "order_matched") {
-        if (bidsArr.some((o: any) => priceEquals(o.price, price))) isBid = true;
-        else if (asksArr.some((o: any) => priceEquals(o.price, price))) isBid = false;
-        else {
-          console.debug("order_matched: price not found in either side", { symbol, price });
-          return prev;
-        }
-      } else {
-        isBid = true;
-      }
-
-      const key = isBid ? "bids" : "asks";
-      let updatedSide = isBid ? bidsArr : asksArr;
-
-      const findIdx = (arr: any[], p: number) => arr.findIndex(o => priceEquals(o.price, p));
-
-      if (type === "order_added") {
-        const addQty = Number(remaining ?? quantity ?? 0);
-        if (addQty <= 0) {
-          const idx = findIdx(updatedSide, price);
-          if (idx !== -1) updatedSide.splice(idx, 1);
-        } else {
-          const idx = findIdx(updatedSide, price);
-          if (idx !== -1) {
-            const existing = updatedSide[idx];
-            updatedSide[idx] = { ...existing, qty: (Number(existing.qty) || 0) + addQty };
-          } else {
-            updatedSide.push({ price: Number(price), qty: addQty });
-          }
-        }
-      } else if (type === "order_matched") {
-        const matchedQty = Number(quantity ?? remaining ?? 0);
-        if (matchedQty <= 0) {
-        } else {
-          const idx = findIdx(updatedSide, price);
-          if (idx === -1) {
-            console.debug("order_matched: price not present while trying to reduce", { symbol, price, matchedQty });
-          } else {
-            const existing = updatedSide[idx];
-            const newQty = (Number(existing.qty) || 0) - matchedQty;
-            if (newQty > EPS) {
-              updatedSide[idx] = { ...existing, qty: newQty };
-            } else {
-              updatedSide.splice(idx, 1);
-            }
-          }
-        }
-      } else {
-        return prev;
-      }
-
-      updatedSide.sort((a, b) => (isBid ? b.price - a.price : a.price - b.price));
-
-      const newBook = {
-        bids: isBid ? updatedSide : bidsArr,
-        asks: isBid ? asksArr : updatedSide,
-      };
-
-      return {
-        ...prev,
-        [symbol]: newBook,
-      };
-    });
+    if (type === "snapshot") {
+      setOrderBooks(payload);
+    }
   };
 
   const placeOrder = async (type: "buy" | "sell") => {
@@ -137,13 +90,14 @@ export default function OrderBooksView() {
         price: parseFloat(buyPrice),
         quantity: parseFloat(buyQty),
       });
-
       alert(`${type === "buy" ? "Buy" : "Sell"} order sent!`);
     } catch (err) {
       console.error(`Failed to place ${type} order:`, err);
       alert(`Failed to place ${type} order`);
     }
   };
+
+  if (loading) return <div>Loading order books...</div>;
 
   const containerStyle: React.CSSProperties = { padding: "24px" };
   const cardStyle: React.CSSProperties = {
