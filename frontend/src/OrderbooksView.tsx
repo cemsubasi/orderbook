@@ -74,67 +74,10 @@ export default function OrderBooksView() {
 
   const handleEvent = (event: any) => {
     const { type, payload } = event;
-    const { symbol, side, price, remaining, quantity } = payload;
 
-    setOrderBooks((prev) => {
-      const prevSymbol = prev[symbol] || {};
-      const bidsArr = Array.isArray(prevSymbol.bids) ? [...prevSymbol.bids] : [];
-      const asksArr = Array.isArray(prevSymbol.asks) ? [...prevSymbol.asks] : [];
-
-      let isBid: boolean | null = null;
-      if (side === "buy") isBid = true;
-      else if (side === "sell") isBid = false;
-      else if (type === "order_matched") {
-        if (bidsArr.some((o: any) => priceEquals(o.price, price))) isBid = true;
-        else if (asksArr.some((o: any) => priceEquals(o.price, price))) isBid = false;
-        else return prev;
-      } else {
-        isBid = true;
-      }
-
-      let updatedSide = isBid ? bidsArr : asksArr;
-      const findIdx = (arr: any[], p: number) => arr.findIndex((o) => priceEquals(o.price, p));
-
-      if (type === "order_added") {
-        const addQty = Number(remaining ?? quantity ?? 0);
-        if (addQty <= 0) {
-          const idx = findIdx(updatedSide, price);
-          if (idx !== -1) updatedSide.splice(idx, 1);
-        } else {
-          const idx = findIdx(updatedSide, price);
-          if (idx !== -1) {
-            updatedSide[idx] = { ...updatedSide[idx], qty: (Number(updatedSide[idx].qty) || 0) + addQty };
-          } else {
-            updatedSide.push({ price: Number(price), qty: addQty });
-          }
-        }
-      } else if (type === "order_matched") {
-        const matchedQty = Number(quantity ?? remaining ?? 0);
-        if (matchedQty > 0) {
-          const idx = findIdx(updatedSide, price);
-          if (idx !== -1) {
-            const existing = updatedSide[idx];
-            const newQty = (Number(existing.qty) || 0) - matchedQty;
-            if (newQty > EPS) updatedSide[idx] = { ...existing, qty: newQty };
-            else updatedSide.splice(idx, 1);
-          }
-        }
-      } else {
-        return prev;
-      }
-
-      updatedSide.sort((a, b) => (isBid ? b.price - a.price : a.price - b.price));
-
-      const newBook = {
-        bids: isBid ? updatedSide : bidsArr,
-        asks: isBid ? asksArr : updatedSide,
-      };
-
-      return {
-        ...prev,
-        [symbol]: newBook,
-      };
-    });
+    if (type === "snapshot") {
+      setOrderBooks(payload);
+    }
   };
 
   const placeOrder = async (type: "buy" | "sell") => {

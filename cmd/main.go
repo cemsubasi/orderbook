@@ -5,6 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/cemsubasi/orderbook/internal/api"
 	"github.com/cemsubasi/orderbook/internal/db"
@@ -46,30 +48,28 @@ func main() {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	context, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sig
+		log.Println("Signal received, shutting down...")
+		cancel()
+	}()
+
+	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, pgpool, context)
+	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, pgpool, context)
 
 	publishers := func() map[string]engine.EventWriter {
 		return map[string]engine.EventWriter{
-			engine.OrderTopic:    event.NewKafkaPublisher([]string{kafkaBrokers}, engine.OrderTopic),
-			engine.TradeTopic:    event.NewKafkaPublisher([]string{kafkaBrokers}, engine.TradeTopic),
-			engine.SnapshotTopic: event.NewKafkaPublisher([]string{kafkaBrokers}, engine.SnapshotTopic),
+			engine.OrderTopic: event.NewKafkaPublisher([]string{kafkaBrokers}, engine.OrderTopic),
+			engine.TradeTopic: event.NewKafkaPublisher([]string{kafkaBrokers}, engine.TradeTopic),
 		}
 	}()
 
-	// publisher := event.NewKafkaPublisher(
-	// 	[]string{kafkaBrokers},
-	// 	"orderbook_events",
-	// )
-
-	// defer publisher.Close()
-
-	hub := ws.NewWsHub()
-	event.StartKafkaWsConsumer(hub, []string{kafkaBrokers})
-	event.StartKafkaOrderConsumer([]string{kafkaBrokers}, pgpool)
-	event.StartKafkaTradeConsumer([]string{kafkaBrokers}, pgpool)
-
-	books, err := db.RetrieveOrderBooks(pgpool)
+	books, err := db.RetrieveOrderBooks(pgpool, context)
 	if err != nil {
 		log.Fatal("Couldn't load existing orders from DB:", err)
 		return
@@ -77,8 +77,10 @@ func main() {
 
 	engine := engine.NewEngine(publishers)
 	engine.Setup(books)
-	// go engine.Monitor()
-	engine.Start(ctx, false)
+	engine.Start(context)
+
+	hub := ws.NewWsHub()
+	ws.StartWsSnapshotWorker(hub, engine, context)
 
 	gin.SetMode(gin.ReleaseMode)
 

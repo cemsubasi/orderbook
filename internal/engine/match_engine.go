@@ -2,16 +2,13 @@ package engine
 
 import (
 	"context"
-	"time"
 )
 
 type Engine struct {
-	books             map[string]*OrderBook
-	orderChannel      chan *Order
-	snapshotPublisher EventWriter
-	orderPublisher    EventWriter
-	tradePublisher    EventWriter
-	// processed         int64
+	books          map[string]*OrderBook
+	orderChannel   chan *Order
+	orderPublisher EventWriter
+	tradePublisher EventWriter
 }
 
 type EventWriter interface {
@@ -26,11 +23,10 @@ const (
 
 func NewEngine(eventPublishers map[string]EventWriter) *Engine {
 	return &Engine{
-		books:             make(map[string]*OrderBook),
-		orderChannel:      make(chan *Order, 100000),
-		snapshotPublisher: eventPublishers[SnapshotTopic],
-		orderPublisher:    eventPublishers[OrderTopic],
-		tradePublisher:    eventPublishers[TradeTopic],
+		books:          make(map[string]*OrderBook),
+		orderChannel:   make(chan *Order, 100000),
+		orderPublisher: eventPublishers[OrderTopic],
+		tradePublisher: eventPublishers[TradeTopic],
 	}
 }
 
@@ -38,7 +34,7 @@ func (engine *Engine) Setup(orderbooks map[string]*OrderBook) {
 	engine.books = orderbooks
 }
 
-func (engine *Engine) Start(ctx context.Context, isReplay bool) {
+func (engine *Engine) Start(ctx context.Context) {
 	go func() {
 		for {
 			select {
@@ -47,14 +43,12 @@ func (engine *Engine) Start(ctx context.Context, isReplay bool) {
 				orderbook := engine.GetBook(order.Symbol)
 				trades := orderbook.MatchIncoming(order)
 
-				if !isReplay {
-					for _, trade := range trades {
-						go engine.publishTradeEvent("order_matched", trade)
-					}
+				if len(trades) > 0 {
+					go engine.publishTradeEvent("order_matched", trades)
+				}
 
-					if order.Remaining > 0 && order.Price > 0 {
-						go engine.publishOrderEvent("order_added", order)
-					}
+				if order.Remaining > 0 && order.Price > 0 {
+					go engine.publishOrderEvent("order_added", order)
 				}
 
 			case <-ctx.Done():
@@ -81,30 +75,3 @@ func (e *Engine) publishTradeEvent(eventType string, payload any) {
 	}
 	e.tradePublisher.Publish(eventType, payload)
 }
-
-func (e *Engine) publishSnapshotEvent(eventType string, payload any) {
-	if e.snapshotPublisher == nil {
-		return
-	}
-
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		books := e.GetBooks()
-		for _, book := range books {
-			snapshot := book.Snapshot(10)
-			e.snapshotPublisher.Publish(eventType, snapshot)
-		}
-
-		e.snapshotPublisher.Publish(eventType, payload)
-	}
-}
-
-// func (e *Engine) Monitor() {
-// 	ticker := time.NewTicker(time.Second)
-// 	for range ticker.C {
-// 		fmt.Println("Emir/saniye:", e.processed)
-// 		e.processed = 0
-// 	}
-// }

@@ -3,142 +3,137 @@ package event
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
-	"github.com/cemsubasi/orderbook/internal/ws"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/segmentio/kafka-go"
 )
 
-func StartKafkaWsConsumer(hub *ws.WsHub, brokers []string) {
+func StartKafkaOrderConsumer(brokers []string, db *pgxpool.Pool, ctx context.Context) {
 	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 		for {
-			log.Println("Creating reader...")
-			r := kafka.NewReader(kafka.ReaderConfig{
-				Brokers: brokers,
-				Topic:   engine.SnapshotTopic,
-				GroupID: "ws_broadcast",
-			})
-			defer r.Close()
-			log.Println("Kafka ws consumer connected")
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				reader := kafka.NewReader(kafka.ReaderConfig{
+					Brokers: brokers,
+					Topic:   engine.OrderTopic,
+					GroupID: "order_handler",
+				})
+				log.Println("Kafka order consumer connected")
+				for {
+					select {
+					case <-ctx.Done():
+						log.Println("Kafka consumer stopping during read...")
+						_ = reader.Close()
+						return
+					default:
+						m, err := reader.ReadMessage(ctx)
+						if err != nil {
+							if errors.Is(err, context.Canceled) {
+								log.Println("Kafka consumer read canceled due to context shutdown")
+								return
+							}
 
-			for {
-				m, err := r.ReadMessage(ctx)
-				if err != nil {
-					log.Println("kafka read err:", err)
-					log.Println("Reconnecting to Kafka in 1 second...")
-					_ = r.Close()
-					time.Sleep(1 * time.Second)
-					break
+							log.Println("kafka read err:", err)
+							log.Println("Reconnecting to Kafka in 1 second...")
+							_ = reader.Close()
+							time.Sleep(1 * time.Second)
+							break
+						}
+
+						var event struct {
+							Type    string          `json:"type"`
+							Payload json.RawMessage `json:"payload"`
+						}
+						if err := json.Unmarshal(m.Value, &event); err != nil {
+							log.Fatal("unmarshal event err:", err)
+							continue
+						}
+
+						if event.Type != "order_added" {
+							log.Fatal("The kafka message is in the wrong topic")
+							return
+						}
+
+						var order *engine.Order
+						if err := json.Unmarshal(event.Payload, &order); err != nil {
+							log.Fatal("unmarshal order err:", err)
+							continue
+						}
+
+						persistOrder(ctx, db, order)
+					}
 				}
-
-				hub.Broadcast(m.Value)
 			}
 		}
 	}()
 }
 
-func StartKafkaOrderConsumer(brokers []string, db *pgxpool.Pool) {
+func StartKafkaTradeConsumer(brokers []string, db *pgxpool.Pool, ctx context.Context) {
 	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
 		for {
-			log.Println("Creating reader...")
-			reader := kafka.NewReader(kafka.ReaderConfig{
-				Brokers: brokers,
-				Topic:   engine.OrderTopic,
-				GroupID: "order_handler",
-			})
-			defer reader.Close()
-			log.Println("Kafka order consumer connected")
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				log.Println("Creating reader...")
+				reader := kafka.NewReader(kafka.ReaderConfig{
+					Brokers: brokers,
+					Topic:   engine.TradeTopic,
+					GroupID: "trade_handler",
+				})
+				log.Println("Kafka trade consumer connected")
 
-			for {
-				m, err := reader.ReadMessage(ctx)
-				if err != nil {
-					log.Println("kafka read err:", err)
-					log.Println("Reconnecting to Kafka in 1 second...")
-					_ = reader.Close()
-					time.Sleep(1 * time.Second)
-					break
+				for {
+					select {
+					case <-ctx.Done():
+						log.Println("Kafka consumer stopping during read...")
+						_ = reader.Close()
+						return
+					default:
+						m, err := reader.ReadMessage(ctx)
+						if err != nil {
+							if errors.Is(err, context.Canceled) {
+								log.Println("Kafka consumer read canceled due to context shutdown")
+								return
+							}
+
+							log.Println("kafka read err:", err)
+							log.Println("Reconnecting to Kafka in 1 second...")
+							_ = reader.Close()
+							time.Sleep(1 * time.Second)
+							break
+						}
+
+						var event struct {
+							Type    string          `json:"type"`
+							Payload json.RawMessage `json:"payload"`
+						}
+						if err := json.Unmarshal(m.Value, &event); err != nil {
+							log.Println("unmarshal event err:", err)
+							continue
+						}
+
+						if event.Type != "order_matched" {
+							log.Fatal("The kafka message is in the wrong topic")
+							continue
+						}
+
+						var trades []*engine.Trade
+						if err := json.Unmarshal(event.Payload, &trades); err != nil {
+							log.Println("unmarshal trade err:", err)
+							continue
+						}
+
+						persistTrades(ctx, db, trades)
+					}
 				}
-
-				var event struct {
-					Type    string          `json:"type"`
-					Payload json.RawMessage `json:"payload"`
-				}
-				if err := json.Unmarshal(m.Value, &event); err != nil {
-					log.Println("unmarshal event err:", err)
-					continue
-				}
-
-				if event.Type != "order_added" {
-					log.Fatal("The kafka message is in the wrong topic")
-					return
-				}
-
-				var order *engine.Order
-				if err := json.Unmarshal(event.Payload, &order); err != nil {
-					log.Println("unmarshal trade err:", err)
-					continue
-				}
-
-				persistOrder(ctx, db, order)
-			}
-		}
-	}()
-}
-
-func StartKafkaTradeConsumer(brokers []string, db *pgxpool.Pool) {
-	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		for {
-			log.Println("Creating reader...")
-			reader := kafka.NewReader(kafka.ReaderConfig{
-				Brokers: brokers,
-				Topic:   engine.TradeTopic,
-				GroupID: "trade_handler",
-			})
-
-			defer reader.Close()
-			log.Println("Kafka trade consumer connected")
-
-			for {
-				m, err := reader.ReadMessage(ctx)
-				if err != nil {
-					log.Println("kafka read err:", err)
-					log.Println("Reconnecting to Kafka in 1 second...")
-					_ = reader.Close()
-					time.Sleep(1 * time.Second)
-					break
-				}
-
-				var event struct {
-					Type    string          `json:"type"`
-					Payload json.RawMessage `json:"payload"`
-				}
-				if err := json.Unmarshal(m.Value, &event); err != nil {
-					log.Println("unmarshal event err:", err)
-					continue
-				}
-
-				if event.Type != "order_matched" {
-					log.Fatal("The kafka message is in the wrong topic")
-					continue
-				}
-
-				var trade engine.Trade
-				if err := json.Unmarshal(event.Payload, &trade); err != nil {
-					log.Println("unmarshal trade err:", err)
-					continue
-				}
-
-				persistTrade(ctx, db, &trade)
 			}
 		}
 	}()
@@ -149,42 +144,38 @@ func persistOrder(ctx context.Context, db *pgxpool.Pool, order *engine.Order) {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		order.ID, order.Symbol, order.Side, order.Price, order.Quantity, order.Remaining, time.Now().UTC())
 	if err != nil {
-		log.Println("persist order err:", err)
+		if errors.Is(err, context.Canceled) {
+			log.Println("Database operation canceled due to context shutdown")
+			return
+		}
+
+		log.Fatal("persist order err:", err)
 	} else {
 		// log.Printf("Order %s persisted/updated with remaining %f", order.ID, order.Remaining)
 	}
 }
 
-// func removeOrderIfFilled(ctx context.Context, db *pgxpool.Pool, orderID string, filledQty float64) {
-// 	var remaining float64
-// 	err := db.QueryRow(ctx, `SELECT remaining FROM orders WHERE id=$1`, orderID).Scan(&remaining)
-// 	if err != nil {
-// 		return
-// 	}
+func persistTrades(ctx context.Context, db *pgxpool.Pool, trades []*engine.Trade) {
+	columns := []string{"id", "symbol", "buy_order_id", "sell_order_id", "price", "quantity", "executed_at"}
 
-// 	remaining -= filledQty
-// 	if remaining <= 0 {
-// 		_, err := db.Exec(ctx, `DELETE FROM orders WHERE id=$1`, orderID)
-// 		if err != nil {
-// 			log.Println("delete order err:", err)
-// 		} else {
-// 			// log.Printf("Order %s fully filled and removed", orderID)
-// 		}
-// 	} else {
-// 		_, err := db.Exec(ctx, `UPDATE orders SET remaining=$1 WHERE id=$2`, remaining, orderID)
-// 		if err != nil {
-// 			log.Println("update remaining err:", err)
-// 		}
-// 	}
-// }
+	rows := make([][]interface{}, len(trades))
+	for i, t := range trades {
+		rows[i] = []interface{}{t.ID, t.Symbol, t.BuyOrderID, t.SellOrderID, t.Price, t.Quantity, t.ExecutedAt}
+	}
 
-func persistTrade(ctx context.Context, db *pgxpool.Pool, trade *engine.Trade) {
-	_, err := db.Exec(ctx, `INSERT INTO trades (id, symbol, buy_order_id, sell_order_id, price, quantity, executed_at) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		trade.ID, trade.Symbol, trade.BuyOrderID, trade.SellOrderID, trade.Price, trade.Quantity, trade.ExecutedAt)
+	_, err := db.CopyFrom(
+		ctx,
+		pgx.Identifier{"trades"},
+		columns,
+		pgx.CopyFromRows(rows),
+	)
+
 	if err != nil {
-		log.Println("persist trade err:", err)
-	} else {
-		// log.Printf("Trade %s persisted", trade.ID)
+		if errors.Is(err, context.Canceled) {
+			log.Println("Database operation canceled due to context shutdown")
+			return
+		}
+
+		log.Fatal("persist trades err:", err)
 	}
 }

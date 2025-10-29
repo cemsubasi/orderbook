@@ -10,9 +10,9 @@ import (
 
 type OrderBook struct {
 	Symbol      string
-	buys        map[float64]*PriceLevel // price -> level (buy sorted descending)
+	buys        map[float64]*PriceLevel
 	buysPrices  []float64
-	sells       map[float64]*PriceLevel // price -> level (sell sorted ascending)
+	sells       map[float64]*PriceLevel
 	sellsPrices []float64
 }
 

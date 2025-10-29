@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/cemsubasi/orderbook/internal/engine"
 	"github.com/gin-gonic/gin"
@@ -65,7 +64,6 @@ func HandleOrderController(r *gin.Engine, e *engine.Engine) {
 			Price:     orderRequest.Price,
 			Quantity:  orderRequest.Quantity,
 			Remaining: orderRequest.Quantity,
-			CreatedAt: time.Now().UTC(),
 		}
 
 		e.Submit(order)

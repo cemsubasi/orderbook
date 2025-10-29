@@ -21,7 +21,7 @@ func InitPostgres(pgUser string, pgPass string, pgHost string, pgDB string) *pgx
 	return pool
 }
 
-func RetrieveOrderBooks(pool *pgxpool.Pool) (map[string]*engine.OrderBook, error) {
+func RetrieveOrderBooks(pool *pgxpool.Pool, context context.Context) (map[string]*engine.OrderBook, error) {
 	query := `
      SELECT 
     o.id,
@@ -52,7 +52,7 @@ ORDER BY o.symbol,
          o.created_at;
     `
 
-	rows, err := pool.Query(context.Background(), query)
+	rows, err := pool.Query(context, query)
 	if err != nil {
 		return nil, fmt.Errorf("query orders err: %w", err)
 	}
